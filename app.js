@@ -2,10 +2,9 @@ const express = require('express');
 const mysql = require('mysql2');
 const app = express();
 
-// ❌ ช่องโหว่ที่ 1: Hardcoded Credentials (Black Duck SCA / SAST ควรจะแจ้งเตือน)
-// การใส่รหัสผ่านและคีย์ต่างๆ ไว้ในโค้ดโดยตรง เป็นสิ่งที่ไม่ปลอดภัย
-const DB_PASSWORD = "SuperSecretPassword123!"; 
-const API_KEY = "AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P"; 
+// ✅ Remediation: Sensitive data should be managed securely using environment variables or secret management tools
+const DB_PASSWORD = process.env.DB_PASSWORD || ""; 
+const API_KEY = process.env.API_KEY || "";
 
 const connection = mysql.createConnection({
     host: 'localhost',
@@ -14,13 +13,18 @@ const connection = mysql.createConnection({
     database: 'user_db'
 });
 
-// ❌ ช่องโหว่ที่ 2: SQL Injection (SAST Flaw)
-// รับค่าจาก URL directly แล้วเอาไปต่อสตริงใน SQL query โดยไม่มีการ Protect
+// ✅ Remediated: CSRF Protection (Fix Vulnerability)
+// เพิ่ม Validation สำหรับ CSRF token ก่อน Processing Request
 app.get('/api/users', (req, res) => {
-    const userId = req.query.id;
+const userId = req.query.id;
+const csrfToken = req.headers['x-csrf-token'];
+ 
+if (!csrfToken || csrfToken !== req.session.csrfToken) {
+         return res.status(403).send('Invalid CSRF token');
+     }
     
     // โค้ดที่ไม่ปลอดภัย (Vulnerable Code)
-    const query = `SELECT * FROM users WHERE id = '${userId}'`;
+    const query = 'SELECT * FROM users WHERE id = ?';
     
     connection.query(query, (err, results) => {
         if (err) {
