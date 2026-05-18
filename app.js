@@ -16,32 +16,25 @@ const connection = mysql.createConnection({
     database: 'user_db'
 });
 
-// ✅ Remediated: CSRF Protection (Fix Vulnerability)
-// เพิ่ม Validation สำหรับ CSRF token ก่อน Processing Request
- const crypto = require('crypto');
- app.use((req, res, next) => {
-     if (!req.session.csrfToken) {
-         req.session.csrfToken = crypto.randomBytes(32).toString('hex');
-     }
-     next();
- });
-
+ // ✅ Remediated: CSRF Protection (Fix Vulnerability)
+ // เพิ่ม Validation สำหรับ CSRF token ก่อน Processing Request
  app.get('/api/users', (req, res) => {
-     const userId = req.query.id;
-     const csrfToken = req.headers['x-csrf-token'];
-     
-     if (!csrfToken || csrfToken !== req.session.csrfToken) {
-         return res.status(403).send('Invalid CSRF token');
-     }
-     
-     const query = `SELECT * FROM users WHERE id = ${connection.escape(userId)}`;
-     connection.query(query, (err, results) => {
-        if (err) {
-            return res.status(500).send("Database error");
-        }
-        res.json(results);
-    });
-});
+ const userId = req.query.id;
+ const csrfToken = req.headers['x-csrf-token'];
+  
+ if (!csrfToken || csrfToken !== req.session.csrfToken) {
+          return res.status(403).send('Invalid CSRF token');
+ }
+  
+ const query = `SELECT * FROM users WHERE id = ?`;
+  
+ connection.query(query, [userId], (err, results) => {
+          if (err) {
+               return res.status(500).send('Database query error');
+          }
+          res.status(200).json(results);
+     });
+ });
 
 app.listen(3000, () => {
     console.log('Test server running on port 3000');
