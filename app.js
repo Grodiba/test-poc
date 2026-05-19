@@ -1,41 +1,34 @@
+require('dotenv').config(); // 1. โหลดค่าคอนฟิกจากไฟล์ .env
 const express = require('express');
 const mysql = require('mysql2');
 const app = express();
-res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-// Remediation: Remove the "X-Powered-By" header to prevent sensitive server information from being disclosed.
-app.disable('x-powered-by');
 
-// ✅ Remediation: Sensitive data should be managed securely using environment variables or secret management tools
-const DB_PASSWORD = process.env.DB_PASSWORD || ""; 
-const API_KEY = process.env.API_KEY || "";
-
+// ✅ แก้ไขช่องโหว่ที่ 1: ดึงค่าจาก Environment Variables แทนการเขียนลงในโค้ดโดยตรง
 const connection = mysql.createConnection({
-    host: 'localhost',
-    user: 'admin',
-    password: DB_PASSWORD,
-    database: 'user_db'
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'admin',
+    password: process.env.DB_PASSWORD, // ดึงมาจาก .env
+    database: process.env.DB_NAME || 'user_db'
 });
 
- // ✅ Remediated: CSRF Protection (Fix Vulnerability)
- // เพิ่ม Validation สำหรับ CSRF token ก่อน Processing Request
- app.get('/api/users', (req, res) => {
- const userId = req.query.userid;
- const csrfToken = req.headers['x-csrf-token'];
-  
- if (!csrfToken || csrfToken !== req.session.csrfToken) {
-          return res.status(403).send('Invalid CSRF token');
- }
-  
- const query = `SELECT * FROM users WHERE id = ?`;
-  
- connection.query(query, [userId], (err, results) => {
-          if (err) {
-               return res.status(500).send('Database query error');
-          }
-          res.status(200).json(results);
-     });
- });
+// ✅ แก้ไขช่องโหว่ที่ 2: ป้องกัน SQL Injection ด้วย Prepared Statements
+app.get('/api/users', (req, res) => {
+    const userId = req.query.id;
+    
+    // ใช้เครื่องหมาย ? แทนการต่อสตริงโดยตรง (Placeholder)
+    const query = 'SELECT * FROM users WHERE id = ?';
+    
+    // ส่งค่า userId แยกไปใน Array ระบบ Database จะมองค่านี้เป็น Literal Value เสมอ ไม่ใช่คำสั่ง SQL
+    connection.execute(query, [userId], (err, results) => {
+        if (err) {
+            // หลีกเลี่ยงการพ่น Error ละเอียดของ DB ออกไปให้ User เห็นภายนอกเพื่อความปลอดภัย
+            console.error(err); 
+            return res.status(500).send("Internal Server Error");
+        }
+        res.json(results);
+    });
+});
 
 app.listen(3000, () => {
-    console.log('Test server running on port 3000');
+    console.log('Secure server running on port 3000');
 });
