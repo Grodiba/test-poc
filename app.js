@@ -1,35 +1,36 @@
-require('dotenv').config(); // 1. โหลดค่าคอนฟิกจากไฟล์ .env
+require('dotenv').config(); 
 const express = require('express');
+const helmet = require('helmet'); //  แก้ไข 1: เพิ่มการ Import helmet
 const mysql = require('mysql2');
 const app = express();
 
+// เปิดใช้งาน HSTS Header ป้องกัน Protocol Downgrade
 app.use(helmet.hsts({
-    maxAge: 31536000,           // บังคับใช้เป็นเวลา 1 ปี (หน่วยเป็นวินาที)
-    includeSubDomains: true,    // มีผลกับ Subdomains ทั้งหมดด้วย
+    maxAge: 31536000,           // บังคับใช้เป็นเวลา 1 ปี
+    includeSubDomains: true,    // มีผลกับ Subdomains ทั้งหมด
     preload: true
 }));
 
-// ✅ แก้ไขช่องโหว่ที่ 1: ดึงค่าจาก Environment Variables แทนการเขียนลงในโค้ดโดยตรง
 const connection = mysql.createConnection({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'admin',
-    password: process.env.DB_PASSWORD, // ดึงมาจาก .env
+    password: process.env.DB_PASSWORD, 
     database: process.env.DB_NAME || 'user_db'
 });
 
-// ✅ แก้ไขช่องโหว่ที่ 2: ป้องกัน SQL Injection ด้วย Prepared Statements
+// ดึงข้อมูลโปรไฟล์อย่างปลอดภัย
 app.get('/myProfile', function(req, res) {
-    var id = req.session.userid;
+    var id = req.session ? req.session.userid : null; // ป้องกันกรณี req.session เป็น undefined
 
-    // ตรวจสอบก่อนว่า User ทำการ Login หรือยัง (Session มีค่าไหม)
+    // ตรวจสอบสถานะการ Login
     if (!id) {
         return res.status(401).send("Unauthorized: Please login first");
     }
 
-    // เปลี่ยนจาก SELECT * เป็นเลือกเฉพาะฟิลด์ที่จำเป็นเพื่อความปลอดภัย
-    connection.query('SELECT username, email, role FROM users WHERE id=?', [id], function(err, results) {
+    //  แก้ไข 3: เปลี่ยนเป็น connection.execute เพื่อการทำ Prepared Statement ที่สมบูรณ์ใน mysql2
+    connection.execute('SELECT username, email, role FROM users WHERE id = ?', [id], function(err, results) {
         if (err) {
-            console.error(err); // Log error ไว้หลังบ้าน
+            console.error(err); 
             return res.status(500).send("Internal Server Error");
         }
 
@@ -37,10 +38,9 @@ app.get('/myProfile', function(req, res) {
             return res.status(404).send("User not found");
         }
 
-        // Handle result และส่งข้อมูลกลับไปอย่างปลอดภัย
         res.json(results[0]);
     });
-}
+}); //  แก้ไข 2: ใส่ปีกกาและวงเล็บปิดหน้าบ้านของ app.get ให้ครบถ้วน
 
 app.listen(3000, () => {
     console.log('Secure server running on port 3000');
