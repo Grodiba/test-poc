@@ -3,6 +3,12 @@ const express = require('express');
 const mysql = require('mysql2');
 const app = express();
 
+app.use(helmet.hsts({
+    maxAge: 31536000,           // บังคับใช้เป็นเวลา 1 ปี (หน่วยเป็นวินาที)
+    includeSubDomains: true,    // มีผลกับ Subdomains ทั้งหมดด้วย
+    preload: true
+}));
+
 // ✅ แก้ไขช่องโหว่ที่ 1: ดึงค่าจาก Environment Variables แทนการเขียนลงในโค้ดโดยตรง
 const connection = mysql.createConnection({
     host: process.env.DB_HOST || 'localhost',
@@ -12,22 +18,29 @@ const connection = mysql.createConnection({
 });
 
 // ✅ แก้ไขช่องโหว่ที่ 2: ป้องกัน SQL Injection ด้วย Prepared Statements
-app.get('/api/users', (req, res) => {
-    const userId = req.query.id;
-    
-    // ใช้เครื่องหมาย ? แทนการต่อสตริงโดยตรง (Placeholder)
-    const query = 'SELECT * FROM users WHERE id = ?';
-    
-    // ส่งค่า userId แยกไปใน Array ระบบ Database จะมองค่านี้เป็น Literal Value เสมอ ไม่ใช่คำสั่ง SQL
-    connection.execute(query, [userId], (err, results) => {
+app.get('/myProfile', function(req, res) {
+    var id = req.session.userid;
+
+    // ตรวจสอบก่อนว่า User ทำการ Login หรือยัง (Session มีค่าไหม)
+    if (!id) {
+        return res.status(401).send("Unauthorized: Please login first");
+    }
+
+    // เปลี่ยนจาก SELECT * เป็นเลือกเฉพาะฟิลด์ที่จำเป็นเพื่อความปลอดภัย
+    connection.query('SELECT username, email, role FROM users WHERE id=?', [id], function(err, results) {
         if (err) {
-            // หลีกเลี่ยงการพ่น Error ละเอียดของ DB ออกไปให้ User เห็นภายนอกเพื่อความปลอดภัย
-            console.error(err); 
+            console.error(err); // Log error ไว้หลังบ้าน
             return res.status(500).send("Internal Server Error");
         }
-        res.json(results);
+
+        if (results.length === 0) {
+            return res.status(404).send("User not found");
+        }
+
+        // Handle result และส่งข้อมูลกลับไปอย่างปลอดภัย
+        res.json(results[0]);
     });
-});
+}
 
 app.listen(3000, () => {
     console.log('Secure server running on port 3000');
