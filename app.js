@@ -1,7 +1,7 @@
 const express = require('express');
 const mysql = require('mysql2');
 const app = express();
-
+res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 // Remediation: Remove the "X-Powered-By" header to prevent sensitive server information from being disclosed.
 app.disable('x-powered-by');
 
@@ -19,7 +19,7 @@ const connection = mysql.createConnection({
  // ✅ Remediated: CSRF Protection (Fix Vulnerability)
  // เพิ่ม Validation สำหรับ CSRF token ก่อน Processing Request
  app.get('/api/users', (req, res) => {
- const userId = req.query.id;
+ const userId = req.query.userid;
  const csrfToken = req.headers['x-csrf-token'];
   
  if (!csrfToken || csrfToken !== req.session.csrfToken) {
